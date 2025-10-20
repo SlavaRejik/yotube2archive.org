@@ -1,0 +1,10 @@
+.idea/
+.idea/*
+
+*.py[cod]
+*.pyc
+
+*/logs/*
+data
+__pycache__
+config.py
