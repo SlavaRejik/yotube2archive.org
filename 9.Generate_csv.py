@@ -47,7 +47,7 @@ with open('/tmp/video-archive.csv', 'w', newline='', encoding='utf-8') as file:
         else:
             log.error(f"Youtbe video not found in archive checked video: {y['oyid']}")
 
-# Make html
+# Make html table
 with open('/tmp/video-archive.html', 'w', newline='', encoding='utf-8') as file:
     file.write("<table><tr><th>Yotube</th><th>Archive</th><th>Title</th></tr>\n")
 
@@ -56,4 +56,15 @@ with open('/tmp/video-archive.html', 'w', newline='', encoding='utf-8') as file:
             file.write (f"<tr><td><a target=\"_blank\" href=\"https://youtu.be/{y['id']}\">{y['id']}</a></td><td><a  target=\"_blank\" href=\"https://archive.org/details/{y['oyid']}\">{y['oyid']}</a></td><td>{y['title']}</td></tr>\n")
         else:
             log.error(f"Youtbe video not found in archive checked video: {y['oyid']}")
+    file.write("</table>")
+
+# Make html text
+with open('/tmp/video-archive.html', 'w', newline='', encoding='utf-8') as file:
+    num = 1
+    for y in y_videos:
+        if y['oyid'] in a_videos:
+            file.write (f"<p>№{num}<br><a target=\"_blank\" href=\"https://youtu.be/{y['id']}\">https://youtu.be/{y['id']}</a><br><a target=\"_blank\" href=\"https://archive.org/details/{y['oyid']}\">https://archive.org/details/{y['oyid']}</a><br>{y['title']}</p>\n")
+        else:
+            log.error(f"Youtbe video not found in archive checked video: {y['oyid']}")
+        num+=1
     file.write("</table>")
