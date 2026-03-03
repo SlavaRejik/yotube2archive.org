@@ -11,6 +11,6 @@ sleep 3
 killall x11vnc
 rm -f ~/vnc.log ~/vnc.err
 
-echo Run x11vnc
+#echo Run x11vnc
 /usr/bin/x11vnc -loop -noxfixes -noxdamage  -usepw -forever -rfbport 5910 -display :100
 

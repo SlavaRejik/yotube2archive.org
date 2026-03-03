@@ -19,7 +19,8 @@ status = '<b>OK</b>'
 if sys.argv[1] != '0':
     status = '<b>ERROR</b>'
 
-text = '{}\n{}'.format(status, lib_telegram.truncate_text_utf8(lib_telegram.tail_log_for_telegram('{}/{}'.format(config.log_dir,sys.argv[2])), 4000))
+text = '{}\n{}'.format(status, lib_telegram.truncate_text_utf8(
+    lib_telegram.tail_log_for_telegram('{}/{}'.format(config.log_dir,sys.argv[2])), 4000))
 
 
 print(len(text))

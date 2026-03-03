@@ -15,17 +15,8 @@ with conn.cursor(dictionary=True) as cursor:
     cursor.execute("SELECT * FROM `playlists` WHERE `channel_id` = ?",(config.channel_id,))
     playlists=cursor.fetchall()
 
-# DELETE PLAYLIST MEMBERS FROM DB
-# log.debug(f"Delete playlists for chanel {config.channel_id}")
-# with conn.cursor(dictionary=True) as cursor:
-#     cursor.execute("DELETE FROM `playlists` WHERE `channel_id` = ?", (config.channel_id,))
-#     conn.commit()
-#     log.debug('Changed {} rows'.format(cursor.rowcount))
-# exit(0)
-
-
-# todo = ['PLYUZcn2y_GPaOlwT5TuVj4QJDJv8fmJD7',
-#         'PLYUZcn2y_GPZzk6Rhldkk3B7s4RfqRsq0']
+# ltodo = ['PLUvHw72mPih4Un_2xcj-zhZ4dBWhx_JtH',
+#         ]
 
 # Cycle by playlists
 cur_playlist=0
@@ -34,17 +25,12 @@ for playlist in playlists:
     # if playlist['id'] not in ltodo:
     #     continue
 
-    # DELETE PLAYLIST MEMBERS FROM DB
-    # log.debug(f"Delete playlist members for {playlist['id']}")
-    # with conn.cursor(dictionary=True) as cursor:
-    #     cursor.execute("DELETE FROM `playlists_members` WHERE `playlist_id` = ?", (playlist['id'],))
-    #     conn.commit()
-    #     log.debug('Changed {} rows'.format(cursor.rowcount))
-    # continue
+
 
     # Get playlist members
     with conn.cursor(dictionary=True) as cursor:
-        cursor.execute("SELECT * FROM `playlists_members` WHERE `playlist_id` = ? and status is NULL", (playlist['id'],))
+        cursor.execute("SELECT * FROM `playlists_members` WHERE `playlist_id` = ? and (status is NULL or status != 'ok')",
+                       (playlist['id'],))
         playlist_members = cursor.fetchall()
     cur_video=0
 
@@ -55,14 +41,6 @@ for playlist in playlists:
         ret = None
         log.debug('Video:{}/{} Playlist:{}/{} "{}"'.format( cur_video, len(playlist_members),
                                                             cur_playlist, len(playlists), playlist['title']))
-
-        # DELETE VIDEOS FROM DB
-        # log.debug(f"Delete {video['video_id']}")
-        # with conn.cursor(dictionary=True) as cursor:
-        #     cursor.execute("DELETE FROM `videos` WHERE `id` = ?", (video['video_id'],))
-        #     conn.commit()
-        #     log.debug('Changed {} rows'.format(cursor.rowcount))
-        # continue
 
         # Check YouTube video exist in db
         with conn.cursor(dictionary=True) as cursor:
