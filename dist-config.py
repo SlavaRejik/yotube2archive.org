@@ -14,8 +14,9 @@ yt_dlp = 'yt-dlp --cookies-from-browser chrome  --proxy="socks5://127.0.0.1:8888
 
 channel_id = 'UCR0-7hO2RMofHzerE8GcnxQ' # @OpenYoga108
 
-storage = 'disk-2025-07'
+storage = 'rejik-2026'
 
 telegram_api_key = '123'
 telegram_chat_id = '123'
 
+YOUTUBE_API_KEY = '123'

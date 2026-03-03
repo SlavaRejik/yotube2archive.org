@@ -6,7 +6,8 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 sudo apt update
-sudo apt install libmariadb3 libmariadb-dev python3.11-venv build-essential python3.11-dev wget xvfb x11vnc psmisc ffmpeg 
+sudo apt install libmariadb3 libmariadb-dev python3-venv build-essential python3-dev wget xvfb x11vnc psmisc ffmpeg
+
 
 python3 -m venv ~/.venv
 

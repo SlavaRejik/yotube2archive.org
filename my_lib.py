@@ -13,6 +13,8 @@ import time
 import shutil
 import internetarchive
 from pathlib import Path
+from urllib.parse import unquote
+import configparser
 from typing import Generator
 import webvtt
 import json
@@ -22,6 +24,19 @@ from collections import deque
 # import requests
 import config
 # from pprint import pprint
+
+
+# Get internetarchive username from ini
+def ia_user():
+    ia_config = configparser.ConfigParser(interpolation=None)
+    home_dir = Path.home()
+    ia_config_filename = home_dir / '.config/internetarchive/ia.ini'
+    with open(ia_config_filename, 'r') as file:
+        ia_config.read_file(file)
+
+    section_dict = dict(ia_config['cookies'])
+    user = unquote(section_dict['logged-in-user']).split(';')[0]
+    return user
 
 ## Calculate md5 sum of file
 import hashlib
@@ -107,7 +122,36 @@ def gen_oyid():
     return t
 
 ## Take new id with check in db
-def take_new_oyid(l_conn, l_log):
+def take_new_oyid(l_conn, l_log, parent_oyid=None):
+
+    # If parent exist
+    if parent_oyid is not None:
+        l_log.debug('Gen sub oyid for: {}'.format(parent_oyid))
+        with l_conn.cursor() as l_cursor:
+            l_cursor.execute("SELECT `oyid` FROM `oyids` WHERE oyid LIKE ? ORDER by ctime DESC LIMIT 1",
+                             (parent_oyid+'-%',))
+
+            # First sub oyid
+            if l_cursor.rowcount == 0:
+                n=parent_oyid+'-1'
+                l_cursor.execute("INSERT INTO `oyids`(`oyid`, `ctime`) VALUES(?, current_timestamp())", (n,))
+                l_conn.commit()
+                l_cursor.close()
+                l_log.debug('Take new oyid: {}'.format(n))
+                return n
+
+            # Not first sub
+            else:
+                last_line = l_cursor.fetchone()[0]
+                last_num = int(last_line[1+len(gen_oyid()):])
+                n=parent_oyid+'-'+str(last_num+1)
+                l_cursor.execute("INSERT INTO `oyids`(`oyid`, `ctime`) VALUES(?, current_timestamp())", (n,))
+                l_conn.commit()
+                l_cursor.close()
+                l_log.debug('Take new oyid: {}'.format(n))
+                return n
+
+    # Without parent
     with  l_conn.cursor() as l_cursor:
         while True:
             n = gen_oyid()
@@ -147,25 +191,11 @@ def vtt_to_linear_text(src, savefile: Path, line_end="\n"):
             writer.write(line.replace("&nbsp;", " ").strip() + line_end)
 
 
-# def ar_lang(lang,l_log):
-#     convert_lang = {'ru': 'rus',
-#                     'en': 'eng',
-#                     'uk': 'ukr',
-#                     'es': 'spa',
-#                     'nl': 'nld'}
-
-    # if lang not in convert_lang:
-    #     l_log.error("Can't convert language {}".format(lang))
-    #     exit(-1)
-    # return  convert_lang[lang]
-
-
-
 def compare_md(old_md, new_md):
     # Compare md
     change_md = {}
     for k in new_md:
-        if k not in old_md or new_md[k] != old_md[k]:
+        if k not in old_md or (new_md[k] != old_md[k] and new_md[k] != [old_md[k]]):
             if k not in old_md and new_md[k] == '':
                 continue
             change_md[k] = new_md[k]
@@ -180,7 +210,7 @@ def compare_md(old_md, new_md):
     return change_md
 
 
-def upload_files_to_archive(l_oyid, l_files, l_md, l_log, sleep_time=120):
+def upload_files_to_archive(l_oyid, l_files, l_md, l_log, sleep_time=20):
 
     item = internetarchive.get_item(l_oyid)
     if item.item_metadata != {}:
@@ -193,27 +223,44 @@ def upload_files_to_archive(l_oyid, l_files, l_md, l_log, sleep_time=120):
         description = c_md['description']
         del c_md['description']
 
-    l_log.debug('Upload without description')
+    title = ''
+    if 'title' in c_md:
+        title = c_md['title']
+        c_md['title']='title'
+
+    l_log.debug('Upload without description and title')
     l_log.debug(c_md)
     r1 = internetarchive.upload(identifier=l_oyid,
                                 files=l_files,
                                 verbose=True,
                                 verify=True,
                                 retries=10,
-                                retries_sleep=60,
+                                retries_sleep=sleep_time,
                                 metadata=c_md)
 
     if not r1[0].ok:
         l_log.error('Can\'t upload without description video {}, code: {}. Exit.'.format(l_oyid, r1[0].status_code))
         return -1
 
-    # Sleep
-    for _ in tqdm(range(sleep_time), desc=f"Sleep {sleep_time} sec"):
-        sleep(1)
+    print('Wait item: ',end=' ', flush=True)
+    while True:
+        print('.', end='', flush=True)
+        sleep(10)
+        item = internetarchive.get_item(l_oyid)
+        if item.item_metadata != {}:
+            break
+    print(' found.')
+    l_log.debug(item)
 
+    changes = {}
     if description != '' :
-        l_log.debug('Add description')
-        r = internetarchive.modify_metadata(l_oyid, metadata={'description': description})
+        changes['description'] = description
+    if title != '' :
+        changes['title'] = title
+
+    if changes != {}:
+        l_log.debug(f'Add changes: {changes}')
+        r = internetarchive.modify_metadata(l_oyid, metadata=changes)
         if not r.ok:
             l_log.error('Can\'t change metadata for {}, code: {}. Exit.'.format(l_oyid, r.status_code))
             exit(-1)
@@ -250,7 +297,10 @@ def check_active_tasks(ar_id,l_log, wait=True, wait_time=60):
 
 # Convert id to path
 def path_by_id(l_id):
-    return '{}/{}/{}/{}/{}'.format(config.yotube_dir, config.channel_id, l_id[0:2], l_id[2:4], l_id)
+    return '{}/{}/{}'.format(config.yotube_dir, l_id[0:2], l_id)
+
+# def path_by_id(l_id):
+#     return '{}/{}/{}/{}/{}'.format(config.yotube_dir, config.channel_id, l_id[0:2], l_id[2:4], l_id)
 
 
 # Run cmd and return {code: x, stdout: x, stderr: x}
@@ -296,7 +346,7 @@ def download_yotube_video(l_yid, l_log, l_lang = 'ru', disable_subs=False):
         sub_args = ''
     r = run_cmd(l_log, f"{config.yt_dlp} -f 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/mp4' --no-progress "
                        f"--write-description --write-info-json --clean-info-json --write-thumbnail "
-                       f"--convert-thumbnails jpg {sub_args} --retries 20 -o '{path_by_id(l_yid)}/%(title)s' "
+                       f"--convert-thumbnails jpg {sub_args} --retries 20 -o '{path_by_id(l_yid)}/%(title)s.%(ext)s' "
                        f"'https://www.youtube.com/watch?v={l_yid}'")
 
     if r['code'] != 0:
@@ -306,11 +356,11 @@ def download_yotube_video(l_yid, l_log, l_lang = 'ru', disable_subs=False):
         l_log.error('Stderr: {}'.format(r['stderr']))
 
         # Check subtitles error
-        if r['stderr'] == "ERROR: Unable to download video subtitles for 'ru': HTTP Error 429: Too Many Requests":
+        if "ERROR: Unable to download video subtitles for 'ru'" in r['stderr']:
             l_log.warning(f"Detected RU subtitles error")
             return download_yotube_video(l_yid, l_log, l_lang = 'en')
 
-        elif r['stderr'] == "ERROR: Unable to download video subtitles for 'en': HTTP Error 429: Too Many Requests":
+        elif "ERROR: Unable to download video subtitles for 'en'" in r['stderr']:
             l_log.warning(f"Detected EN subtitles error")
             return download_yotube_video(l_yid, l_log, disable_subs=True)
 
@@ -345,8 +395,9 @@ def download_yotube_video(l_yid, l_log, l_lang = 'ru', disable_subs=False):
 
         l_y_video = {'id': data['id'],
                    'title': data['title'],
-                   'language': data['language'] if 'language' in data else 'ru'
-                     }
+                   'language': data['language'] if 'language' in data else 'ru',
+                   'channel_id': data['channel_id']
+                    }
         if 'license' in data:
             l_y_video['license'] = data['license']
 
@@ -385,3 +436,21 @@ def tail_log_for_telegram(filename, n=10):
             else:
                 l_log += line
     return l_log
+
+# Seconds to days hours:minutes str
+def seconds_to_dhm(seconds):
+    ret = ''
+    days = seconds // 86400
+    if days > 0:
+        ret += str(days) + ' days '
+    seconds %= 86400
+    hours = seconds // 3600
+    if hours > 0 or days > 0:
+        ret += f'{hours:02d}:'
+    seconds %= 3600
+    minutes = seconds // 60
+
+    ret += f'{minutes:02d}'
+    seconds %= 60
+
+    return ret

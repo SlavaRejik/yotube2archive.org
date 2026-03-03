@@ -1,9 +1,10 @@
 #!/bin/bash
 
 while true; do
+
   sudo /usr/sbin/service redsocks restart
 
-  ./4.Upload_to_archive.py
+  ./Upload_file_tree_to_archive.py
   status=$?
   if [ "$status" -eq "0" ]; then
     break
@@ -16,5 +17,5 @@ while true; do
   sleep 600 | pv -t -N "Sleeping"
 done
 
-./_send_to_telegram.py $? 4.Upload_to_archive.py.log
+./_send_to_telegram.py $? Upload_file_tree_to_archive.py.log
 

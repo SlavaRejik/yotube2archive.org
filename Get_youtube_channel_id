@@ -1,0 +1,1 @@
+yt-dlp --print channel_id --proxy="socks5://127.0.0.1:8888" "https://youtube.com/@opentantrayoga"
